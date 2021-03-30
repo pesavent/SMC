@@ -1,4 +1,3 @@
-
 # This python script was written by a simple biochemist with little formal programming training. Is the code great?
 # Nope, but it is indeed functional. The program was designed to accomplish a few quick
 # tasks, namely: how many ms2 events occur for a given precursors mass, summing ms2 ions for a given precursor 
@@ -54,8 +53,14 @@ class App(object):
         self.popupMenu.grid(row = 0, column =1)
         self.file_var.trace('w',self.makeform)
 
+        #menubar = Menu(root)
+        #testmenu = Menu(menubar, tearoff=0)
+        #testmenu.add_command(label="Open")
+        #menubar.add_cascade(label="File", menu=testmenu)
+        #root.config(menu=menubar)
+
         self.test_isomers = IntVar()
-        self.isomer_btn = tk.Checkbutton(self.content, text="Isomer Search (Optional)", variable=self.test_isomers)
+        self.isomer_btn = tk.Checkbutton(self.content, text="dMass/Isomer Search (Optional)", variable=self.test_isomers)
 
         self.b1 = tk.Button(self.content, text='Run',  fg="green", command=(lambda : self.fetch()))
         self.b2 = tk.Button(self.content, text='Quit', command=root.destroy)
@@ -72,28 +77,17 @@ class App(object):
 
        
     def clear(self): 
-        #self.file_var = StringVar(root)
-        #self.file_var.set('Select Type/File') 
-        #self.popupMenu = OptionMenu(self.content, self.file_var, *file_types)
         Label(self.content, text="Select data type and open file:").grid(row = 0, column = 0)
         self.popupMenu.grid(row = 0, column =1)
-        #self.file_var.trace('w',self.makeform)
-
-        self.test_isomers = IntVar()
-        self.isomer_btn = tk.Checkbutton(self.content, text="Isomer Search (Optional)", variable=self.test_isomers)
-
-        #self.b1 = tk.Button(self.content, text='Run',  fg="green", command=(lambda : self.fetch()))
-        #self.b2 = tk.Button(self.content, text='Quit', command=root.destroy)
-        self.b2.grid(row=6,column=0)
         self.e=StringVar()
         self.e.set("                                                 ")
         self.loading = tk.Label(self.content, textvariable=self.e)
         self.loading.grid(row=8, columnspan=4, sticky="ew")
         
-        root.columnconfigure(0, weight=1)
-        root.rowconfigure(0, weight=1)
-        self.content.columnconfigure(0, weight=2)
-        self.content.columnconfigure(1, weight=2)
+        #root.columnconfigure(0, weight=1)
+        #root.rowconfigure(0, weight=1)
+        #self.content.columnconfigure(0, weight=2)
+        #self.content.columnconfigure(1, weight=2)
         
     
     def update_progress(self,progress):
@@ -199,6 +193,7 @@ class App(object):
 
         if (len(sorted_array)) == 0:
             mb.showerror("Warning", "Based on your search criteria, no results were generated.")
+            self.loading.destroy()
         else:
             activation = str(sorted_array[0][0])
             while len(sorted_array) != 0:
@@ -242,6 +237,7 @@ class App(object):
 
             self.display_output(filenames)       
             mb.showinfo("Run Completed", "The run has completed and generated an output file(s).")
+            self.loading.destroy()
 
             
     def makegraph(self,precursors, hist_bin_size):
@@ -308,6 +304,7 @@ class App(object):
 
     def callback(self,param, data):
         self.clear()
+        
         if param == "MSALIGN":
             self.b1.grid(row=6,column=1)
             scan = []
@@ -458,7 +455,7 @@ class App(object):
                 ms2events+=1
             del lines[0]
 
-        self.loading.grid_forget()
+        self.loading.destroy()
         
         #This is very important: Here is the final format of the np array:
         #For each precursor ion, the format is [ID,SCANS,RETENTION_TIME,ACTIVATION,PRECURSOR_MZ,PRECURSOR_CHARGE,PRECURSOR_MASS,[ARRAY OF MS2 IONS]]
@@ -516,6 +513,11 @@ class App(object):
         organized_CSV = np.array((activation,organized_CSV), dtype=object)
         self.isomer_search(organized_CSV,mass)
 
+    
+    #This function takes a TDValidator .csv output file (m/z, intensity) and a user-defined parameter file
+    #that is also a .csv file and formatted as follows (amino acid name, amino acid position, PTM name, fragment
+    #ion mass INCLUDING PTM!). The function will automatically convert the fragment ion + PTM mass into m/z for
+    #1+, 2+ and 3+ charge states and search for the monoisoptic peak of each within the TDValidator .csv file.
     def tdvalidator_search(self,search_params):
         pool = []
         convert = []
@@ -577,10 +579,13 @@ class App(object):
                 line = str(i)[1:-1]
                 out_file.write("\n"+line)
         
+    #This function does NOT destinguish between ion types, so be careful! It is a preliminary isomer/deltaM
+    #search tool that needs to be followed up with rigourous manual analysis. 
     def isomer_search(self,ms2_ions,mass):
         date = datetime.today().strftime('%Y%m%d_%H%M%S')
         matched_fragments = []
         massdiff, tolerance = float(i_ents[0][1].get()),float(i_ents[1][1].get())
+        header = ["Mass 1", "Mass 2", "DeltaMass","Intensity ratio [mass 1/mass 2]"]
 
         for activation_type in range(0,len(ms2_ions),2):
             filename = str(int(mass))+"_"+str(ms2_ions[activation_type]).replace('ACTIVATION=','')+"_"+date+"_isomers.txt"
@@ -609,7 +614,9 @@ class App(object):
                                 matched_fragments.append(a)
                         ms2_ions[activation_type+1][scan] = np.delete(ms2_ions[activation_type+1][scan],0,0)
 
-                matched_fragments = sorted(matched_fragments, key=lambda x: x[0])  
+                matched_fragments = sorted(matched_fragments, key=lambda x: x[0])
+                for i in header:
+                    out_file.write(str(i)+", ")
                 for i in matched_fragments:
                     out_file.write("\n"+str(i))
                 matched_fragments = []
@@ -620,3 +627,5 @@ class App(object):
 root = tk.Tk()
 app = App(root)        
 root.mainloop()
+    
+
